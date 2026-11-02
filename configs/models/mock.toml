@@ -1,0 +1,18 @@
+# Offline defaults; no environment variables or provider credentials are read.
+[calls.default]
+backend = "mock"
+model = "mock-model"
+[calls.event_filter]
+backend = "mock"
+[calls.input_classifier]
+backend = "mock"
+[calls.output_check]
+backend = "mock"
+[calls.router_decision]
+backend = "mock"
+[calls.router_reply]
+backend = "mock"
+[calls.worker_step]
+backend = "mock"
+[calls.worker]
+backend = "mock"

@@ -9,7 +9,7 @@ class ChatRequest:
     messages: list[dict[str, Any]]
     model: str
     max_tokens: int = 512
-    temperature: float = 0.7
+    temperature: float | None = None
     response_format: dict[str, Any] | None = None
     call_type: str = "default"
     request_id: str = ""
@@ -21,7 +21,9 @@ class ChatRequest:
             raise ValueError("model must be a nonempty string")
         if type(self.max_tokens) is not int or self.max_tokens <= 0:
             raise ValueError("max_tokens must be a positive integer")
-        if type(self.temperature) not in {int, float} or not 0 <= self.temperature <= 2:
+        if self.temperature is not None and (
+            type(self.temperature) not in {int, float} or not 0 <= self.temperature <= 2
+        ):
             raise ValueError("temperature must be between 0 and 2")
         if self.response_format is not None and not isinstance(self.response_format, dict):
             raise TypeError("response_format must be a dictionary or None")
@@ -37,6 +39,7 @@ class ChatChunk:
     finish_reason: str | None = None
     # Present only on the terminal chunk. Values use canonical token names.
     usage: dict[str, int | None] | None = None
+    reasoning: str = ""
 
 
 @runtime_checkable
@@ -44,5 +47,7 @@ class ModelBackend(Protocol):
     name: str
 
     def stream_chat(self, req: ChatRequest) -> AsyncIterator[ChatChunk]: ...
+
+    async def chat(self, req: ChatRequest) -> ChatChunk: ...
 
     async def health(self) -> bool: ...

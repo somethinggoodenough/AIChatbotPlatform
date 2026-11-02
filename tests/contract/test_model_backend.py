@@ -1,6 +1,7 @@
 """ModelBackend contract tests against a local controllable SSE server."""
 
 import asyncio
+from dataclasses import replace
 import json
 from pathlib import Path
 import unittest
@@ -20,8 +21,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class LocalSSEServer:
-    def __init__(self, mode: str = "complete") -> None:
+    def __init__(self, mode: str = "complete", usage_events: list[dict] | None = None) -> None:
         self.mode = mode
+        self.usage_events = usage_events
         self.server: asyncio.Server | None = None
         self.paths: list[str] = []
         self.bodies: list[dict] = []
@@ -71,6 +73,8 @@ class LocalSSEServer:
                 b"Cache-Control: no-cache\r\nConnection: close\r\n\r\n"
             )
             await writer.drain()
+            if self.mode == "reasoning":
+                await self._event(writer, {"choices": [{"delta": {"reasoning_content": "thinking"}}]})
             await self._event(writer, {"choices": [{"delta": {"content": "hel"}, "finish_reason": None}]})
             if self.mode == "hang":
                 if await reader.read() == b"":
@@ -78,14 +82,13 @@ class LocalSSEServer:
                 return
             await self._event(writer, {"choices": [{"delta": {"content": "lo"}, "finish_reason": None}]})
             await self._event(writer, {"choices": [{"delta": {}, "finish_reason": "stop"}]})
-            await self._event(writer, {
-                "choices": [],
-                "usage": {
+            usage_events = self.usage_events if self.usage_events is not None else [{
                     "prompt_tokens": 9,
                     "completion_tokens": 2,
                     "prompt_tokens_details": {"cached_tokens": 3},
-                },
-            })
+            }]
+            for usage in usage_events:
+                await self._event(writer, {"choices": [], "usage": usage})
             writer.write(b"data: [DONE]\n\n")
             await writer.drain()
         except (asyncio.IncompleteReadError, ConnectionError, BrokenPipeError):
@@ -126,6 +129,37 @@ def profile(name: str, base_url: str):
 
 
 class ModelBackendContractTests(unittest.IsolatedAsyncioTestCase):
+    async def test_usage_accumulates_partial_snapshots_and_deltas(self):
+        cases = [
+            ("cumulative", [{"prompt_tokens": 9}, {"completion_tokens": 1},
+                            {"completion_tokens": 2, "prompt_tokens_details": {"cached_tokens": 3}}]),
+            ("delta", [{"prompt_tokens": 9, "completion_tokens": 1},
+                       {"completion_tokens": 1, "prompt_tokens_details": {"cached_tokens": 3}}]),
+        ]
+        for mode, events in cases:
+            with self.subTest(mode=mode):
+                async with LocalSSEServer(usage_events=events) as server:
+                    backend = OpenAIBackend(replace(profile("openai", server.base_url), usage_stream_mode=mode))
+                    try:
+                        result = await backend.chat(ChatRequest([], "openai-test"))
+                    finally:
+                        await backend.aclose()
+                self.assertEqual(result.usage["prompt_tokens"], 9)
+                self.assertEqual(result.usage["completion_tokens"], 2)
+                self.assertEqual(result.usage["cached_tokens"], 3)
+
+    async def test_optional_temperature_and_separate_reasoning(self):
+        async with LocalSSEServer("reasoning") as server:
+            backend = OpenAIBackend(profile("openai", server.base_url))
+            try:
+                chunks = [chunk async for chunk in backend.stream_chat(ChatRequest([], "openai-test"))]
+            finally:
+                await backend.aclose()
+        self.assertNotIn("temperature", server.bodies[0])
+        self.assertEqual("".join(c.text for c in chunks), "hello")
+        self.assertEqual("".join(c.reasoning for c in chunks), "thinking")
+        self.assertTrue(all(c.usage is None for c in chunks[:-1]))
+
     async def test_streaming_contract_and_terminal_usage(self):
         async with LocalSSEServer() as server:
             backend = OpenAIBackend(profile("openai", server.base_url))

@@ -4,6 +4,8 @@ This is the implementation plan for the AI Chatbot Serving Platform (working tit
 
 ## Principles
 
+**Offline implementation run (2026-11-02):** Phase commits distinguish implemented code from real-system acceptance. See [offline evidence](docs/reports/offline-acceptance.md). GPU/provider/Discord-dependent items remain unchecked until measured on those systems; mock results do not satisfy them.
+
 - **Every phase ends in a shippable state.** The README is current and every benchmark number can be reproduced with one command. The project can stop at any phase boundary and still be complete.
 - **Benchmark from day one.** Each new layer reports what it costs (latency, tokens, money) and what it buys.
 - **Acceptance criteria come first.** Each phase lists its criteria up front. A phase is done when they pass, not when the code exists.
@@ -49,11 +51,11 @@ This is the implementation plan for the AI Chatbot Serving Platform (working tit
 
 - [ ] SGLang serving a small local model on the 4060 (Linux or WSL2)
 - [ ] Verify the SGLang features later phases depend on: prefix cache hits, request abort on client disconnect, and structured output with a JSON schema
-- [ ] `ModelBackend` interface with two implementations: local (SGLang through its OpenAI-compatible API) and one external API provider. Both report streaming, cancellation, and token usage the same way
-- [ ] Model assignment per call type, loaded from config (see the table above)
-- [ ] `/metrics` endpoint (Prometheus format): TTFT, inter-token latency, tokens, cost for API calls, and errors per backend
-- [ ] Load generator: concurrency sweeps, configurable length distributions, shared-prefix workloads, and a judgment-style workload (short prompt, long shared prefix, short structured output)
-- [ ] Results saved as JSON plus plots; one script reproduces them
+- [x] `ModelBackend` interface with two implementations: local (SGLang through its OpenAI-compatible API) and one external API provider. Both report streaming, cancellation, and token usage the same way (contract tested offline; real serving acceptance pending)
+- [x] Model assignment per call type, loaded from config (see the table above)
+- [x] `/metrics` endpoint (Prometheus format): TTFT, inter-chunk latency, tokens, known/unknown cost, and errors per backend (true ITL needs token-level timestamps)
+- [x] Load generator: concurrency sweeps, configurable length distributions, shared-prefix workloads, and a judgment-style workload (short prompt, long shared prefix, short structured output)
+- [x] Results saved as JSON plus plots; one script reproduces them (mock baseline; real-model baseline pending)
 
 **Acceptance criteria**
 

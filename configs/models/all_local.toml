@@ -1,0 +1,17 @@
+# Exact model id is taken from the supplied local-sglang ProviderProfile.
+[calls.default]
+backend = "local"
+[calls.event_filter]
+backend = "local"
+[calls.input_classifier]
+backend = "local"
+[calls.output_check]
+backend = "local"
+[calls.router_decision]
+backend = "local"
+[calls.router_reply]
+backend = "local"
+[calls.worker_step]
+backend = "local"
+[calls.worker]
+backend = "local"

@@ -2,7 +2,7 @@
 
 LLM serving 与 Agent runtime 平台。当前规划使用 SGLang 承载本地模型，外部 API 作为同级后端；Discord 是第一个工作负载。完整计划见 [Roadmap](Roadmap.md)。
 
-**当前状态：ModelBackend + ProviderProfile + Phase 0 功能探针。** 已实现统一流式契约、SGLang / DeepSeek / OpenAI / Gemini 后端、取消传播、usage/错误归一化、四个 HTTP spike 和 SGLang Docker Compose 配置；平台 API、gateway 路由和完整基准框架尚未实现。真实 GPU 验证仍等待远程服务，见 [执行状态](docs/reports/phase-0-spikes.md)。
+**当前状态：Phase 0 离线实现。** 统一 backend、按 call type 配置的 gateway、OpenAI-compatible HTTP API、Prometheus metrics、故障可配置的 mock server 和基准脚本已实现。真实 GPU、付费 provider 和 Discord 验收不以 mock 替代，见 [离线验收记录](docs/reports/offline-acceptance.md)。
 
 ```text
 src/ai_serving/     平台代码：接口、后端、网关、Agent runtime、渠道、状态与观测
@@ -31,6 +31,7 @@ artifacts/         本地生成结果，不提交原始输出
 
 ```sh
 uv sync
-uv run python -m unittest discover -s tests/unit -p 'test_*.py' -v
-uv run python -m unittest discover -s tests/contract -p 'test_*.py' -v
+uv run python scripts/acceptance/run_all.py
+uv run python -m benchmarks.harness.baseline
+uv run python -m ai_serving.api --mock --port 8080
 ```

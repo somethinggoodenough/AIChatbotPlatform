@@ -15,6 +15,7 @@ from ai_serving.contracts import ChatChunk, ChatRequest
 
 from .errors import ClassifiedError
 from .profile import ProviderProfile, UnsupportedCapability
+from .usage import TokenUsage
 
 
 class BackendError(RuntimeError):
@@ -136,8 +137,7 @@ class ModelCompatBackend:
         if data:
             yield "\n".join(data)
 
-    def _canonical_usage(self, raw: Mapping[str, Any] | None) -> dict[str, int | None] | None:
-        normalized = self.profile.usage_normalizer.normalize(raw)
+    def _canonical_usage(self, normalized: TokenUsage) -> dict[str, int | None] | None:
         if all(value is None for value in asdict(normalized).values()):
             return None
         return {
@@ -152,7 +152,7 @@ class ModelCompatBackend:
         response: httpx.Response | None = None
         saw_done = False
         finish_reason: str | None = None
-        usage: Mapping[str, Any] | None = None
+        usage = self.profile.usage_accumulator()
         try:
             request = self._client.build_request(
                 "POST",
@@ -196,7 +196,7 @@ class ModelCompatBackend:
                 if event.get("usage") is not None:
                     if not isinstance(event["usage"], dict):
                         raise BackendProtocolError(f"{self.name} returned invalid usage")
-                    usage = event["usage"]
+                    usage.update(event["usage"])
                 choices = event.get("choices", [])
                 if not isinstance(choices, list):
                     raise BackendProtocolError(f"{self.name} returned invalid choices")
@@ -210,11 +210,13 @@ class ModelCompatBackend:
                     if not isinstance(delta, dict):
                         raise BackendProtocolError(f"{self.name} returned an invalid delta")
                     text = delta.get("content")
-                    if text is not None:
-                        if not isinstance(text, str):
-                            raise BackendProtocolError(f"{self.name} returned non-text content")
-                        if text:
-                            yield ChatChunk(text=text)
+                    reasoning = delta.get("reasoning_content")
+                    text = "" if text is None else text
+                    reasoning = "" if reasoning is None else reasoning
+                    if not isinstance(text, str) or not isinstance(reasoning, str):
+                        raise BackendProtocolError(f"{self.name} returned non-text content")
+                    if text or reasoning:
+                        yield ChatChunk(text=text, reasoning=reasoning)
                     if choice.get("finish_reason") is not None:
                         if not isinstance(choice["finish_reason"], str):
                             raise BackendProtocolError(f"{self.name} returned invalid finish_reason")
@@ -226,13 +228,28 @@ class ModelCompatBackend:
                 raise BackendProtocolError(f"{self.name} stream ended without finish_reason")
             yield ChatChunk(
                 finish_reason=finish_reason,
-                usage=self._canonical_usage(usage),
+                usage=self._canonical_usage(usage.normalized(self.profile.usage_normalizer)),
             )
         finally:
             # Both task cancellation while awaiting bytes and generator.aclose()
             # while suspended at yield execute this block.
             if response is not None:
                 await self._close_response(response)
+
+    async def chat(self, req: ChatRequest) -> ChatChunk:
+        """Non-streaming callers collect the same checked streaming protocol."""
+        result = ChatChunk()
+        stream = self.stream_chat(req)
+        try:
+            async for chunk in stream:
+                result.text += chunk.text
+                result.reasoning += chunk.reasoning
+                if chunk.finish_reason is not None:
+                    result.finish_reason = chunk.finish_reason
+                    result.usage = chunk.usage
+        finally:
+            await stream.aclose()
+        return result
 
     async def health(self) -> bool:
         try:

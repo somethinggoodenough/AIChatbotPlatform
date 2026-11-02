@@ -13,6 +13,8 @@ async for chunk in backend.stream_chat(request):
 
 `ChatChunk.usage` appears only on the terminal chunk, together with `finish_reason`. It uses canonical keys: `prompt_tokens`, `completion_tokens`, `cached_tokens`, `cache_write_tokens`, and `reasoning_tokens`. A cancelled or interrupted stream may have no terminal usage because providers often send usage immediately before `[DONE]`.
 
+Usage is assembled with `profile.usage_accumulator()` before normalization: cumulative snapshots merge without double counting; delta increments sum. `temperature=None` omits the parameter. `ChatChunk.reasoning` carries `reasoning_content` separately from user-facing `text`. `chat()` collects the same stream into one result, preserving reasoning, finish reason and usage.
+
 ## Implementations
 
 | Class | Profile | Health endpoint |

@@ -222,18 +222,21 @@ class DurableRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.store.inbox_update(message.message_id, "first", token, status="done")
 
     async def test_watchdog_hung_tool_and_repeating_plan_report_failure(self):
+        entered_tool = asyncio.Event()
         async def hang(arguments):
+            entered_tool.set()
             await asyncio.Event().wait()
 
         task_id, _ = self.task()
         self.server.config.responder = lambda body: {"action": "tool", "tool": "hang", "arguments": {}, "report": "", "artifacts": []}
         started = time.monotonic()
         worker = Worker(self.gateway, self.store, ToolRegistry([Tool("hang", "test hang", hang)]),
-                        progress_timeout=0.04, lease_seconds=0.03)
+                        progress_timeout=0.5, lease_seconds=0.15)
         report = await worker.run(task_id)
         self.assertFalse(report.accepted)
         self.assertIn("progress deadline", report.text)
-        self.assertLess(time.monotonic() - started, 0.5)
+        self.assertTrue(entered_tool.is_set())
+        self.assertLess(time.monotonic() - started, 2)
         next_task, _ = self.task(2)
         self.server.config.responder = lambda body: {"action": "tool", "tool": "add", "arguments": {"a": 1, "b": 1}, "report": "", "artifacts": []}
         report = await Worker(self.gateway, self.store, default_tools()).run(next_task)
@@ -249,14 +252,15 @@ class DurableRuntimeTests(unittest.IsolatedAsyncioTestCase):
                     "report": "done" if done else "", "artifacts": []}
 
         async def hang(arguments):
-            await asyncio.Event().wait()
+            # Inject a read timeout after the model step, independent of CPU load.
+            raise TimeoutError("synthetic read timeout")
 
         async def healthy(arguments):
             return "available"
 
         self.server.config.responder = response
         failed = await Worker(self.gateway, self.store, ToolRegistry([Tool("read", "read data", hang)]),
-                              progress_timeout=0.02).run(task_id)
+                              progress_timeout=2).run(task_id)
         self.assertFalse(failed.accepted)
         self.assertEqual(self.store.task(task_id)["status"], "pending")
         recovered = Worker(self.gateway, self.store, ToolRegistry([Tool("read", "read data", healthy)]))

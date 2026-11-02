@@ -9,7 +9,7 @@ import uuid
 from ai_serving.backends.providers.usage import TokenUsage
 from ai_serving.contracts import ChatRequest
 from ai_serving.contracts.messages import WorkerReport
-from ai_serving.gateway.core import CallContext
+from ai_serving.gateway.routing import RetryContext
 from ai_serving.observability.tracing import traced
 from ai_serving.runtime.recovery.journal import Journal, RecoveryMetrics, UncertainOutcome, supports_step_replay
 from ai_serving.runtime.recovery.watchdog import RepeatedAction, Watchdog
@@ -59,7 +59,7 @@ class TaskBusy(RuntimeError):
 class Worker:
     def __init__(self, gateway, store: StateStore, tools: ToolRegistry, *, max_steps: int = 8,
                  lease_seconds: float = 5.0, progress_timeout: float = 30.0,
-                 repeat_limit: int = 3, crash_hook=None):
+                 repeat_limit: int = 3, crash_hook=None, model_retry_safe: bool = False):
         self.gateway = gateway
         self.store = store
         self.tools = tools
@@ -68,6 +68,7 @@ class Worker:
         self.progress_timeout = progress_timeout
         self.repeat_limit = repeat_limit
         self.crash_hook = crash_hook
+        self.model_retry_safe = model_retry_safe
         self.metrics = RecoveryMetrics()
 
     async def _heartbeat(self, lease, owner_task, watchdog):
@@ -96,6 +97,11 @@ class Worker:
 
     async def _round(self, lease, watchdog) -> WorkerReport:
         task = self.store.task(lease.task_id)
+        # A leased revision identifies a fixed input turn, even if new messages arrive.
+        turn = self.store.connection.execute(
+            "SELECT message_id FROM task_messages WHERE task_id=? ORDER BY rowid LIMIT 1 OFFSET ?",
+            (lease.task_id, lease.revision - 1),
+        ).fetchone()[0]
         journal = Journal(self.store, lease, self.metrics, self.crash_hook)
         context = [{"role": "system", "content":
                     "Complete this task and return a report that satisfies its acceptance criteria.\n"
@@ -111,8 +117,9 @@ class Worker:
             backend, _ = self.gateway.select(request)
 
             async def model_call(key):
-                result = await self.gateway.chat(request, CallContext(
+                result = await self.gateway.chat(request, RetryContext(
                     task_id=lease.task_id, user_id=task["user_id"], step_index=journal.index, request_id=key,
+                    session_id=task["session_id"], turn_id=turn, retry_safe=self.model_retry_safe,
                 ))
                 output = asdict(result)
                 usage = result.usage or {}

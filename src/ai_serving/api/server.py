@@ -17,6 +17,7 @@ import httpx
 from ai_serving.backends.providers import BackendError, BackendHTTPError
 from ai_serving.contracts import ChatChunk, ChatRequest
 from ai_serving.gateway import Gateway
+from ai_serving.gateway.routing import RetryContext
 
 
 def wire_usage(usage: dict | None) -> dict | None:
@@ -120,21 +121,25 @@ class ApiServer:
         try:
             if not isinstance(body, dict) or "messages" not in body:
                 raise ValueError("messages are required")
-            supported = {field.name for field in fields(ChatRequest)} | {"stream", "stream_options", "n"}
+            supported = {field.name for field in fields(ChatRequest)} | {"stream", "stream_options", "n", "retry_safe"}
             if body.keys() - supported or body.get("n", 1) != 1:
                 raise ValueError("Unsupported Chat Completions option")
             if type(body.get("stream", False)) is not bool:
                 raise ValueError("stream must be a boolean")
+            if type(body.get("retry_safe", False)) is not bool:
+                raise ValueError("retry_safe must be a boolean")
             options = body.get("stream_options", {})
             if not isinstance(options, dict) or type(options.get("include_usage", False)) is not bool:
                 raise ValueError("stream_options must specify a boolean include_usage")
             request = ChatRequest(**{key: value for key, value in body.items()
                                      if key in {field.name for field in fields(ChatRequest)}})
+            context = RetryContext(request_id=request.request_id, retry_safe=body.get("retry_safe", False))
             completion_id = "chatcmpl-" + uuid4().hex
             routed_model = self.gateway.select(request)[1].model
             envelope = {"id": completion_id, "created": int(time.time()), "model": routed_model}
             if not body.get("stream", False):
-                result = await self.gateway.chat(request)
+                result = await self.gateway.chat(request, context)
+                envelope["model"] = result.model or routed_model
                 message = {"role": "assistant", "content": result.text}
                 if result.reasoning:
                     message["reasoning_content"] = result.reasoning
@@ -144,9 +149,10 @@ class ApiServer:
                     "usage": wire_usage(result.usage),
                 })
                 return
-            async with aclosing(self.gateway.stream_chat(request)) as stream:
+            async with aclosing(self.gateway.stream_chat(request, context)) as stream:
                 # Keep an upstream pre-output error as an HTTP error response.
                 first = await anext(stream)
+                envelope["model"] = first.model or routed_model
                 writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
                              b"Cache-Control: no-cache\r\nConnection: close\r\n\r\n")
                 streaming_started = True

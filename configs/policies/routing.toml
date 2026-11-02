@@ -1,0 +1,28 @@
+# Names refer to caller-supplied backends. Tests supply only loopback mocks.
+[runtime]
+# Explicit opt-in for repeated read-only model generation, not tool execution.
+model_retry_safe = false
+[gateway]
+total_timeout = 3.0
+max_attempts = 5
+prefix_aware = true
+[policy]
+first_timeout = 0.5
+idle_timeout = 0.5
+max_retries = 1
+backoff = 0.02
+max_backoff = 0.2
+jitter = 0.2
+failure_threshold = 2
+reset_after = 1.0
+[backends.local]
+first_timeout = 1.0
+[routes.default]
+primary = ["primary"]
+fallbacks = ["secondary", "local"]
+canned_reply = "I cannot reach a model right now. Please try again shortly."
+busy_reply = "The service is busy. Please try again later."
+[routes.default.prompts]
+primary = "Answer the user's question clearly and concisely."
+secondary = "Give a brief, self-contained answer. Do not assume prior provider context."
+local = "Use a short answer. If unsure, state the limitation."

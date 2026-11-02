@@ -166,7 +166,7 @@ class AgentRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any("workers" in name or ".tools" in name for name in imports))
         calls = [node.func.attr for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
         self.assertNotIn("execute", calls)
-        self.assertEqual(set(vars(self.runtime.router)), {"gateway", "store", "persona"})
+        self.assertEqual(set(vars(self.runtime.router)), {"gateway", "store", "persona", "model_retry_safe"})
 
     def test_token_bucket_refills_and_invalid_decisions_fail(self):
         bucket = TokenBucket(1, 0.5)

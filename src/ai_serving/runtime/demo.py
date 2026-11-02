@@ -2,15 +2,19 @@
 
 import argparse
 import asyncio
+from contextlib import AsyncExitStack
 from pathlib import Path
 import tempfile
+import tomllib
 
 from ai_serving.backends.providers.backend import ModelCompatBackend
 from ai_serving.channels.fake import FakeChannel
 from ai_serving.config.providers import load_profile, read_environment
 from ai_serving.contracts.messages import Message
 from ai_serving.events.filtering import EventFilter
+from ai_serving.events.batching import EventBatcher
 from ai_serving.gateway.core import Assignment, Gateway
+from ai_serving.gateway.routing import RoutedGateway
 from ai_serving.runtime.router.router import Router
 from ai_serving.runtime.service import AgentRuntime
 from ai_serving.runtime.workers.worker import Worker
@@ -32,26 +36,45 @@ def demo_response(body):
     return "Mock reply: only Workers execute tools."
 
 
-def build_runtime(gateway, store, channel, channel_ids):
-    return AgentRuntime(Router(gateway, store), Worker(gateway, store, default_tools()),
+def build_runtime(gateway, store, channel, channel_ids, *, model_retry_safe=False):
+    return AgentRuntime(Router(gateway, store, model_retry_safe=model_retry_safe),
+                        Worker(gateway, store, default_tools(), model_retry_safe=model_retry_safe),
                         store, channel, EventFilter(set(channel_ids)))
 
 
-async def fake_demo() -> None:
+async def fake_demo(routing: Path | None = None, batch_window: float = 0,
+                    model_retry_safe: bool = False) -> None:
     with tempfile.TemporaryDirectory() as directory:
-        async with MockServer(MockConfig(responder=demo_response)) as server:
-            backend = ModelCompatBackend(server.profile())
-            gateway = Gateway({"mock": backend}, {"default": Assignment("mock")})
+        async with AsyncExitStack() as stack:
+            names = {"mock"}
+            if routing:
+                with routing.open("rb") as handle:
+                    config = tomllib.load(handle)
+                names = {name for route in config["routes"].values()
+                         for name in route["primary"] + route.get("fallbacks", [])}
+                model_retry_safe |= config.get("runtime", {}).get("model_retry_safe", False)
+            servers, backends = {}, {}
+            for name in names:
+                server = await stack.enter_async_context(MockServer(MockConfig(responder=demo_response)))
+                servers[name] = server
+                backends[name] = ModelCompatBackend(server.profile(name))
+            gateway = (RoutedGateway.from_config(backends, routing) if routing
+                       else Gateway(backends, {"default": Assignment("mock")}))
             store = StateStore(Path(directory) / "demo.db")
             channel = FakeChannel()
-            runtime = build_runtime(gateway, store, channel, ["demo"])
+            runtime = build_runtime(gateway, store, channel, ["demo"], model_retry_safe=model_retry_safe)
+            batcher = EventBatcher(runtime.handle_batch, batch_window)
             try:
-                await runtime.handle(Message("1", "user", "demo", "hello", mentions_bot=True))
-                await runtime.handle(Message("2", "user", "demo", "lookup Router", thread_id="thread", mentions_bot=True))
+                await asyncio.gather(*(batcher.submit(Message(str(i), "user", "demo", text, mentions_bot=True))
+                                       for i, text in ((1, "hello"), (2, "one more thought"))))
+                await batcher.submit(Message("work", "user", "demo", "lookup Router", thread_id="thread", mentions_bot=True))
+                # A subscribed follow-up bypasses Router batching entirely.
                 await runtime.handle(Message("3", "user", "demo", "more detail", thread_id="thread"))
                 print({"mode": "mock/fake", "replies": len(channel.messages), "tasks": len(store.tasks()),
-                       "model_generations": server.stats.generations})
+                       "model_generations": sum(server.stats.generations for server in servers.values()),
+                       "batch_window": batch_window, "routing": routing is not None})
             finally:
+                await batcher.aclose()
                 await gateway.aclose()
                 store.close()
 
@@ -90,8 +113,17 @@ def main() -> None:
     parser.add_argument("--profile", help="Provider TOML; used only with --discord")
     parser.add_argument("--channel-id", action="append", default=[])
     parser.add_argument("--database", default="runtime.db")
+    parser.add_argument("--routing", type=Path, help="Offline mock routing policy")
+    parser.add_argument("--batch-window", type=float, default=0, help="Offline event batching window in seconds")
+    parser.add_argument("--retry-safe-model-calls", action="store_true",
+                        help="Explicitly permit read-only model generation retries; not provider billing deduplication")
     args = parser.parse_args()
-    asyncio.run(discord_bot(args) if args.discord else fake_demo())
+    if args.discord and (args.routing or args.batch_window or args.retry_safe_model_calls):
+        parser.error("Routing/batching demo options are offline-only")
+    if args.batch_window < 0:
+        parser.error("batch-window cannot be negative")
+    asyncio.run(discord_bot(args) if args.discord else fake_demo(
+        args.routing, args.batch_window, args.retry_safe_model_calls))
 
 
 if __name__ == "__main__":

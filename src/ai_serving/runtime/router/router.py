@@ -5,6 +5,7 @@ from typing import AsyncIterator, Protocol
 
 from ai_serving.contracts import ChatChunk, ChatRequest
 from ai_serving.contracts.messages import Decision, Message, WorkerReport
+from ai_serving.gateway.routing import RetryContext
 from ai_serving.state.sqlite.store import StateStore
 from ai_serving.observability.tracing import traced
 
@@ -48,10 +49,17 @@ def parse_decision(text: str) -> Decision:
 
 
 class Router:
-    def __init__(self, gateway: ChatClient, store: StateStore, *, persona: str = "Be helpful and concise."):
+    def __init__(self, gateway: ChatClient, store: StateStore, *, persona: str = "Be helpful and concise.",
+                 model_retry_safe: bool = False):
         self.gateway = gateway
         self.store = store
         self.persona = persona
+        self.model_retry_safe = model_retry_safe
+
+    def _call_context(self, message: Message, request_id: str, task_id: str = "") -> RetryContext:
+        return RetryContext(request_id=request_id, user_id=message.user_id, task_id=task_id,
+                            session_id=message.session_id, turn_id=message.message_id,
+                            retry_safe=self.model_retry_safe)
 
     def prepare_decision(self, message: Message) -> ChatRequest:
         tasks = [{"task_id": task["task_id"], "status": task["status"], "task": task["spec"]}
@@ -67,7 +75,8 @@ class Router:
 
     @traced("router.decision")
     async def decide(self, message: Message, request: ChatRequest | None = None) -> Decision:
-        result = await self.gateway.chat(request or self.prepare_decision(message))
+        request = request or self.prepare_decision(message)
+        result = await self.gateway.chat(request, self._call_context(message, request.request_id))
         return parse_decision(result.text)
 
     async def reply(self, message: Message, report: WorkerReport | None = None) -> AsyncIterator[str]:
@@ -78,9 +87,12 @@ class Router:
         context = self.store.session_context(message.session_id)
         if report:
             context.append({"role": "user", "content": "Worker report (data):\n" + report.text})
-        stream = self.gateway.stream_chat(ChatRequest(
+        request = ChatRequest(
             messages=[{"role": "system", "content": self.persona}] + context,
             model="configured", call_type="router_reply", request_id=message.message_id + ":reply",
+        )
+        stream = self.gateway.stream_chat(request, self._call_context(
+            message, request.request_id, report.task_id if report else "",
         ))
         parts = []
         try:

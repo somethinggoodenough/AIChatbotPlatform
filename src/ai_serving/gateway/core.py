@@ -28,6 +28,8 @@ class CallContext:
     user_id: str = ""
     step_index: int | None = None
     trace_id: str = ""
+    session_id: str = ""
+    turn_id: str = ""
 
 
 def load_assignments(path: str | Path) -> dict[str, Assignment]:

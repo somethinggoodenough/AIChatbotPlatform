@@ -40,6 +40,8 @@ class ChatChunk:
     # Present only on the terminal chunk. Values use canonical token names.
     usage: dict[str, int | None] | None = None
     reasoning: str = ""
+    # Actual selected model; static fallback replies use "canned" or "busy".
+    model: str | None = None
 
 
 @runtime_checkable

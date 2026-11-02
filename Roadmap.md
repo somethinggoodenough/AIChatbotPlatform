@@ -130,14 +130,14 @@ This is the implementation plan for the AI Chatbot Serving Platform (working tit
 **Build**
 
 - [ ] Several local replicas (SGLang instances plus mock replicas) and at least two API providers behind the gateway
-- [ ] Mock replica that simulates TTFT, decode timing, and failures, so routing and failover can be tested with more replicas than one GPU can hold
+- [x] Mock replica that simulates TTFT, decode timing, and failures, so routing and failover can be tested with more replicas than one GPU can hold
 - [ ] Prefix-aware routing across local replicas, benchmarked against SGLang Model Gateway's `cache_aware` policy as the baseline
-- [ ] Per-backend timeouts, retry budgets (exponential backoff plus jitter, idempotent requests only), and circuit breakers; handling for provider 429s and rate limits
-- [ ] Fallback across backends as a degradation ladder: primary API → secondary API → local model → canned reply → "busy" message. Each fallback model gets its own tuned prompt
-- [ ] A stable prompt layout (fixed content first, variable content last) so both the local prefix cache and the API providers' prompt caches get hits
-- [ ] Cost accounting per task and per user
-- [ ] Router event batching: events that arrive within a time window are coalesced into one Router decision
-- [ ] Fault injection under load: kill a local replica; make an API provider time out, return 429, or return 5xx; drop connections
+- [x] Per-backend timeouts, explicit safe-retry budgets (exponential backoff plus jitter), and circuit breakers; handling for provider 429s and rate limits (no retries after output; no universal billing idempotency claim)
+- [x] Fallback across backends: primary → secondary → local → configured canned/busy reply, with separate fixed prompt templates (mock-tested; real prompt tuning pending)
+- [x] A stable prompt layout (fixed content first, variable content last), with simulated prefix locality tests
+- [x] Cost accounting per task and per user, including unknown attempts
+- [x] Router event batching: events that arrive within a time window are coalesced into one Router decision
+- [x] Fault injection under load: close a mock replica; simulate timeout, 429, 5xx and dropped connections (real replica test pending)
 
 **Acceptance criteria**
 

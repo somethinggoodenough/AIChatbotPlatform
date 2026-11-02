@@ -216,7 +216,7 @@ class ModelCompatBackend:
                     if not isinstance(text, str) or not isinstance(reasoning, str):
                         raise BackendProtocolError(f"{self.name} returned non-text content")
                     if text or reasoning:
-                        yield ChatChunk(text=text, reasoning=reasoning)
+                        yield ChatChunk(text=text, reasoning=reasoning, model=req.model)
                     if choice.get("finish_reason") is not None:
                         if not isinstance(choice["finish_reason"], str):
                             raise BackendProtocolError(f"{self.name} returned invalid finish_reason")
@@ -229,6 +229,7 @@ class ModelCompatBackend:
             yield ChatChunk(
                 finish_reason=finish_reason,
                 usage=self._canonical_usage(usage.normalized(self.profile.usage_normalizer)),
+                model=req.model,
             )
         finally:
             # Both task cancellation while awaiting bytes and generator.aclose()
@@ -244,6 +245,7 @@ class ModelCompatBackend:
             async for chunk in stream:
                 result.text += chunk.text
                 result.reasoning += chunk.reasoning
+                result.model = chunk.model
                 if chunk.finish_reason is not None:
                     result.finish_reason = chunk.finish_reason
                     result.usage = chunk.usage

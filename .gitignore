@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local secrets and tooling
+.env
+.env.*
+!.env.example
+.DS_Store
+.ipynb_checkpoints/
+
+# Local databases and model weights
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*.safetensors
+*.gguf
+
+# Generated outputs; retain folder documentation
+/artifacts/**
+!/artifacts/**/
+!/artifacts/**/README.md

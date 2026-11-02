@@ -1,0 +1,64 @@
+# DeepSeek OpenAI-format Chat Completions profile.
+# One profile should ultimately represent one model/version/tier; this initial
+# profile is selected by DEEPSEEK_MODEL and must be re-verified when changed.
+[profile]
+name = "deepseek"
+protocol = "chat_completions"
+base_url_env = "DEEPSEEK_BASE_URL"
+model_env = "DEEPSEEK_MODEL"
+api_key_env = "DEEPSEEK_API_KEY"
+api_key_required = true
+endpoint = "/chat/completions"
+auth_header = "Authorization"
+auth_prefix = "Bearer "
+
+[capabilities]
+streaming = true
+# DeepSeek currently documents JSON Object mode, not JSON Schema enforcement.
+json_schema = false
+strict_json_schema = false
+# The generic mapping supports the two modes needed now: none and high. Add a
+# DeepSeek-specific adapter before exposing low/max effort levels.
+reasoning = true
+tools = false
+temperature = false
+
+[request]
+max_tokens_field = "max_tokens"
+stream_usage = true
+# Current DeepSeek models enable thinking by default. Normal calls in the
+# platform expect user-visible content within max_tokens, so disable it unless
+# the caller explicitly requests reasoning.
+defaults = { thinking = { type = "disabled" } }
+reasoning_field = "thinking.type"
+
+[request.reasoning_values]
+none = "disabled"
+high = "enabled"
+
+[usage]
+input_tokens = "prompt_tokens"
+output_tokens = "completion_tokens"
+cache_read_tokens = "prompt_cache_hit_tokens"
+# DeepSeek reports cache hits/misses, not a separately billed cache-write bucket.
+cache_write_tokens = ""
+reasoning_tokens = "completion_tokens_details.reasoning_tokens"
+input_includes_cache = true
+stream_mode = "cumulative"
+
+[errors]
+code_paths = ["error.code", "error.type"]
+
+[errors.statuses]
+"400" = "invalid_request"
+"401" = "authentication"
+"402" = "quota"
+"422" = "invalid_request"
+"429" = "rate_limit"
+"500" = "transient"
+"503" = "transient"
+
+# DeepSeek currently varies token prices by model and peak/off-peak window.
+# The fixed PriceTable cannot represent that safely yet, so rates stay unknown.
+[pricing]
+currency = "USD"

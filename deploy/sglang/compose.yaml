@@ -1,0 +1,35 @@
+name: ai-serving-spikes
+services:
+  sglang:
+    # Pinned CUDA 12 lane. Verify the GPU host driver supports this image.
+    image: ${SGLANG_IMAGE:-lmsysorg/sglang:v0.5.19-cu129}
+    platform: linux/amd64
+    init: true
+    shm_size: "2gb"
+    ports:
+      - "127.0.0.1:30000:30000"
+    environment:
+      SGLANG_MODEL: ${SGLANG_MODEL:-Qwen/Qwen2.5-0.5B-Instruct}
+      SGLANG_API_KEY: ${SGLANG_API_KEY:-}
+      SGLANG_CONTEXT_LENGTH: ${SGLANG_CONTEXT_LENGTH:-4096}
+      SGLANG_MEM_FRACTION: ${SGLANG_MEM_FRACTION:-0.65}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - sglang_hf_cache:/root/.cache/huggingface
+      - ./launch.py:/opt/spike/launch.py:ro
+    entrypoint: ["python3", "/opt/spike/launch.py"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:30000/health', timeout=3).read()"]
+      start_period: 180s
+      interval: 10s
+      timeout: 5s
+      retries: 60
+volumes:
+  sglang_hf_cache:

@@ -1,0 +1,47 @@
+# One profile per endpoint/model/deployment. Verify capabilities with probes.
+[profile]
+name = "local-sglang"
+protocol = "chat_completions"
+base_url_env = "SGLANG_BASE_URL"
+model_env = "SGLANG_MODEL"
+api_key_env = "SGLANG_API_KEY"
+api_key_required = false
+endpoint = "/chat/completions"
+
+[capabilities]
+streaming = true
+json_schema = true
+strict_json_schema = false
+# Enable only after selecting a compatible model and configuring its parsers.
+reasoning = false
+tools = false
+temperature = true
+
+[request]
+max_tokens_field = "max_tokens"
+stream_usage = true
+
+[usage]
+input_tokens = "prompt_tokens"
+output_tokens = "completion_tokens"
+cache_read_tokens = "prompt_tokens_details.cached_tokens"
+# No separate API-billed cache-write bucket in this local profile.
+cache_write_tokens = ""
+reasoning_tokens = "completion_tokens_details.reasoning_tokens"
+input_includes_cache = true
+stream_mode = "cumulative"
+
+[errors]
+code_paths = ["error.code", "error.type"]
+
+[errors.codes]
+context_length_exceeded = "context_length"
+
+[pricing]
+currency = "USD"
+input_per_million = "0"
+output_per_million = "0"
+cache_read_per_million = "0"
+cache_write_per_million = "0"
+effective_date = "2026-11-01"
+source = "Local API fee only; excludes GPU, electricity and hosting costs."

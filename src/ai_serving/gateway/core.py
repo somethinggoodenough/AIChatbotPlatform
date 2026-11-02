@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import aclosing
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from pathlib import Path
 from time import perf_counter
 import tomllib
@@ -11,6 +12,7 @@ from typing import AsyncIterator, Mapping
 from ai_serving.backends.providers.usage import TokenUsage
 from ai_serving.contracts import ChatChunk, ChatRequest, ModelBackend
 from ai_serving.observability.metrics import Metrics
+from ai_serving.observability.tracing import start_span
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,7 @@ class Gateway:
         model = assignment.model or backend.profile.model
         return backend, replace(req, model=model)
 
-    def _record_usage(self, backend: ModelBackend, chunk: ChatChunk) -> None:
+    def _record_usage(self, backend: ModelBackend, chunk: ChatChunk) -> Decimal | None:
         labels = {"backend": backend.name}
         if chunk.usage is None:
             self.metrics.increment("model_usage_unknown_total", **labels)
@@ -78,6 +80,7 @@ class Gateway:
             self.metrics.increment(
                 "model_cost_total", float(price), currency=backend.profile.prices.currency, **labels
             )
+        return price
 
     async def stream_chat(
         self, req: ChatRequest, context: CallContext | None = None,
@@ -85,6 +88,7 @@ class Gateway:
         started = perf_counter()
         backend, routed = self.select(req)
         labels = {"backend": backend.name, "call_type": req.call_type}
+        trace = start_span("model.call", **labels)
         provider_seconds = 0.0
         last_content: float | None = None
         overhead = perf_counter() - started
@@ -109,7 +113,15 @@ class Gateway:
                             self.metrics.observe("model_inter_chunk_seconds", now - last_content, **labels)
                         last_content = now
                     if chunk.finish_reason is not None:
-                        self._record_usage(backend, chunk)
+                        price = self._record_usage(backend, chunk)
+                        trace.set_attribute("cost_known", price is not None)
+                        if price is not None:
+                            trace.set_attribute("cost", float(price))
+                            trace.set_attribute("currency", backend.profile.prices.currency)
+                        if chunk.usage:
+                            for key, value in chunk.usage.items():
+                                if value is not None:
+                                    trace.set_attribute(key, value)
                     overhead += perf_counter() - now
                     yield chunk
         except (asyncio.CancelledError, GeneratorExit):
@@ -119,6 +131,8 @@ class Gateway:
             self.metrics.increment("model_errors_total", **labels)
             raise
         finally:
+            trace.set_attribute("outcome", status)
+            trace.end()
             self.metrics.increment("model_requests_total", status=status, **labels)
             self.metrics.observe("model_provider_seconds", provider_seconds, **labels)
             self.metrics.observe("gateway_overhead_seconds", overhead, **labels)

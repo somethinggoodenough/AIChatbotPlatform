@@ -28,6 +28,9 @@ coverage.xml
 *.sqlite-shm
 *.sqlite3-wal
 *.sqlite3-shm
+*.db
+*.db-wal
+*.db-shm
 *.safetensors
 *.gguf
 

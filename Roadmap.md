@@ -72,17 +72,17 @@ This is the implementation plan for the AI Chatbot Serving Platform (working tit
 
 **Build**
 
-- [ ] `ChannelAdapter` interface and a unified `Message` schema (user, channel, thread, text, attachments, `mentions_bot`, `reply_to`)
+- [x] `ChannelAdapter` interface and a unified `Message` schema (user, channel, thread, text, attachments, `mentions_bot`, `reply_to`)
 - [ ] Discord adapter (`discord.py`): receives messages and posts replies. Long replies stream through throttled message edits, because Discord has no native token streaming
-- [ ] Router: a single long-lived loop that owns the persona, the global context, and the task table. Each turn makes up to two calls, and neither carries tools:
+- [x] Router: a single long-lived loop that owns the persona, the global context, and the task table. Each turn makes up to two calls, and neither carries tools:
   - a **decision**: local model, structured output with an action of `reply`, `spawn`, `forward_to_worker`, or `ignore`
   - a **reply**: API model, generating the text the user sees
-- [ ] Worker: an isolated context that receives a task spec plus acceptance criteria. It has tools (RAG lookup over a small document set, plus one or two toy tools), returns a report and artifacts, and never posts to Discord itself
-- [ ] Thread subscriptions: follow-ups in a Discord thread tied to a task go straight to that task's Worker
-- [ ] Rule-based event filter: ignore bots, channels not on the allowlist, and messages not addressed to the bot
-- [ ] Per-user rate limit (a simple token bucket)
-- [ ] SQLite state store for tasks, threads, subscriptions, and sessions
-- [ ] Tracing (OpenTelemetry): one trace per user request, spanning the Router decision, the reply, the Worker steps, and each model call with its backend and cost
+- [x] Worker: an isolated context that receives a task spec plus acceptance criteria. It has tools (RAG lookup over a small document set, plus one or two toy tools), returns a report and artifacts, and never posts to Discord itself
+- [x] Thread subscriptions: follow-ups in a thread tied to a task go straight to that task's Worker (fake-channel tested)
+- [x] Rule-based event filter: ignore bots, channels not on the allowlist, and messages not addressed to the bot
+- [x] Per-user rate limit (a simple token bucket)
+- [x] SQLite state store for tasks, threads, subscriptions, and sessions
+- [x] Tracing (OpenTelemetry): one trace per user request, spanning the Router decision, the reply model call, the Worker and tools, and each model call with its backend and cost
 
 **Acceptance criteria**
 

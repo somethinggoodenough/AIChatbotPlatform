@@ -18,6 +18,28 @@ uses 24 requests per case, concurrency 1/4/8, input lengths 16/64/256 and output
 limits 8/32, sampled with seed 42. Override those distributions with
 `--input-lengths`, `--output-lengths`, `--concurrency`, `--requests` and `--seed`.
 
+After the GPU is available and SGLang is deployed, the same harness can target
+only `configs/providers/local_sglang.toml` using its values from `.env`:
+
+```sh
+uv run python -m benchmarks.harness.baseline --local --concurrency 1 2 4 --requests 24
+```
+
+This explicit mode writes to `artifacts/benchmarks/sglang/`, labels the output
+`local-sglang`, records the selected model, and has no paid-provider fallback.
+It has not been run against a GPU. Tests exercise that path only with the mock
+server. The default command remains offline and does not read `.env`.
+Real input lengths are four-character units, not exact tokenizer lengths;
+reported token totals come from SGLang usage. ITL fields on real runs represent
+inter-chunk gaps, since a chunk can contain multiple model tokens. Missing
+usage/cache totals remain unknown instead of becoming zero. Each case against
+an existing server starts with a unique fixed-length namespace, shared by that
+case's requests. This separates its long workload prefix from earlier cases
+without flushing other users' cache. The namespace is not written to reports;
+seed-driven length sampling is unchanged. Mock cases already use separate
+server instances. This isolation path is tested against mock SGLang only, not
+a real GPU.
+
 The judgment workload uses a long stable system prompt, a short varying user
 prompt and a structured `action` response; every response is parsed as JSON.
 

@@ -178,15 +178,15 @@ This is the implementation plan for the AI Chatbot Serving Platform (working tit
 
 **Build**
 
-- [ ] Synthetic Discord message stream mixing chit-chat, work requests, follow-ups, and stop requests. Real work is replaced by a time-consuming placeholder tool, so the results measure scheduling rather than model ability
-- [ ] Configurations:
+- [x] Synthetic Discord message stream mixing chit-chat, work requests, follow-ups, and stop requests, using fake channel and a delay tool
+- [x] Configurations (mock scheduling only):
   - (a) Router/Worker
   - (b) Router/Worker without thread passthrough
   - (c) Router/Worker without Router batching
   - (d) single session with a subagent tool, neutral prompt
   - (e) single session with a subagent tool, delegate-first prompt
 - [ ] Run (d) and (e) with both a local model and an API model, because how often a model delegates depends on how strong it is
-- [ ] At least 5 runs per configuration
+- [x] At least 5 runs per configuration (35 mock runs across a/b/c and d/e × simulated local/API)
 
 **Outputs**
 

@@ -4,6 +4,8 @@
 
 - [local_sglang.toml](local_sglang.toml)：本地 SGLang 的初始配置，待真实部署探针验证。
 - [deepseek.toml](deepseek.toml)：DeepSeek OpenAI-format Chat Completions profile。
+- [openai.toml](openai.toml)：OpenAI Chat Completions profile，具体模型待配置。
+- [gemini.toml](gemini.toml)：Gemini OpenAI-compatibility profile，具体模型待配置。
 
 `.env` 保存 endpoint、模型名、密钥及当前 profile 路径。TOML 保存可审阅的能力、请求字段映射、usage normalizer、error classifier 和价格；不要把密钥填进 TOML。
 
@@ -23,8 +25,8 @@
 | Provider | Profile | 环境变量前缀 |
 | --- | --- | --- |
 | DeepSeek | `deepseek.toml` | `DEEPSEEK_` |
-| OpenAI | 待实现 | `OPENAI_` |
-| Gemini | 待实现 | `GEMINI_` |
+| OpenAI | `openai.toml` | `OPENAI_` |
+| Gemini | `gemini.toml` | `GEMINI_` |
 | Claude / Anthropic | 待实现 | `ANTHROPIC_` |
 | Grok / xAI | 待实现 | `XAI_` |
 

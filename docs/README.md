@@ -2,6 +2,7 @@
 
 - [架构](architecture.md)：职责、依赖和阶段映射。
 - [ProviderProfile](provider-profiles.md)：配置切换、能力、usage/错误/价格与 API 差异处理。
+- [ModelBackend](model-backends.md)：统一流式接口、provider 实现和取消传播。
 - [开发](development.md)：当前状态和实现起点。
 - [测试](testing.md)：测试分层及验收证据。
 - [实验](experimentation.md)：测量、对照和复现要求。

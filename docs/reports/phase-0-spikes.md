@@ -26,6 +26,8 @@
 
 修正后重新执行 API streaming spike，通过结果为：128 个 content chunks、1 个最终 usage frame、22 input tokens、128 output tokens、0 reasoning tokens、TTFT 约 0.723 秒；请求明确携带 `stream_options={"include_usage": true}`。证据见 [DeepSeek streaming + usage passed](../../artifacts/spikes/20261102T023950Z-01_streaming-31991128.json)。这些是单次功能探针数据，不作为性能基线。
 
+统一 `DeepSeekBackend` 实现完成后又执行了一次 production transport smoke：收到 5 个 text chunks、`finish_reason=stop` 和终态 usage（14 prompt tokens / 5 completion tokens）。该 smoke 只验证共享 backend transport；取消的服务端 EOF 证据由离线 contract test 提供。
+
 这些原始文件位于被 Git 忽略的本地 artifacts；对外分享报告时需另行归档。Compose 已通过 `config --quiet` 静态校验；这不等于镜像已拉取、容器已启动或 GPU 兼容性已验证。
 
 操作入口：[部署](../../deploy/sglang/README.md) · [四个脚本](../../experiments/phase_0_serving_baseline/spikes/README.md)。

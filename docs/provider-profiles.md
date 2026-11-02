@@ -1,8 +1,8 @@
 # ProviderProfile 与 API 差异
 
-当前已实现 `.env` / TOML 加载、ProviderProfile、Chat Completions 请求编码、usage 归一化、流式 usage 汇总、错误分类和 token 费用估算。全部使用 Python 3.11 标准库。
+当前已实现 `.env` / TOML 加载、ProviderProfile、Chat Completions 请求编码、usage 归一化、流式 usage 汇总、错误分类和 token 费用估算。配置层使用 Python 3.11 标准库；异步 HTTP transport 使用锁定的 `httpx` 依赖。
 
-已为 [Phase 0 spikes](../experiments/phase_0_serving_baseline/spikes/README.md) 编写实验专用 HTTP/SSE 客户端；生产后端的响应内容归一化、取消传播、重试与 fallback 仍待实现。两个初始 profile 均开启 `request.stream_usage = true`，由 spike 验证实际兼容性。JSON schema 请求编码不等于返回值 schema 校验；spike 额外校验其固定 schema。现有 profile 仍是初始配置/模板，不是已验证的供应商兼容性声明。
+生产侧已实现 [ModelBackend](model-backends.md) 的异步 HTTP/SSE、响应归一化与取消传播；重试和 fallback 仍待 gateway 实现。各 profile 开启 `request.stream_usage = true`，契约测试验证统一语义，live spike 验证实际兼容性。JSON schema 请求编码不等于返回值 schema 校验；spike 额外校验其固定 schema。未执行 live probe 的 profile 仍不能视为已验证的供应商兼容性声明。
 
 ## 使用与切换
 
@@ -117,7 +117,8 @@ error = profile.error_classifier.classify(
 当前离线测试只验证本项目的编码和归一化行为，不替代这些真实接入验收：
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests/unit -p 'test_*.py' -v
+uv run python -m unittest discover -s tests/unit -p 'test_*.py' -v
+uv run python -m unittest discover -s tests/contract -p 'test_*.py' -v
 ```
 
 ## 核对过的协议资料

@@ -1,0 +1,45 @@
+# OpenAI Chat Completions profile. Choose a model in OPENAI_MODEL and re-check
+# its exact temperature, reasoning, structured-output, and pricing capabilities.
+[profile]
+name = "openai"
+protocol = "chat_completions"
+base_url_env = "OPENAI_BASE_URL"
+model_env = "OPENAI_MODEL"
+api_key_env = "OPENAI_API_KEY"
+api_key_required = true
+endpoint = "/chat/completions"
+auth_header = "Authorization"
+auth_prefix = "Bearer "
+
+[capabilities]
+streaming = true
+json_schema = true
+strict_json_schema = true
+reasoning = false
+tools = false
+temperature = true
+
+[request]
+max_tokens_field = "max_completion_tokens"
+stream_usage = true
+
+[usage]
+input_tokens = "prompt_tokens"
+output_tokens = "completion_tokens"
+cache_read_tokens = "prompt_tokens_details.cached_tokens"
+cache_write_tokens = ""
+reasoning_tokens = "completion_tokens_details.reasoning_tokens"
+input_includes_cache = true
+stream_mode = "cumulative"
+
+[errors]
+code_paths = ["error.code", "error.type"]
+
+[errors.codes]
+insufficient_quota = "quota"
+context_length_exceeded = "context_length"
+invalid_api_key = "authentication"
+rate_limit_exceeded = "rate_limit"
+
+[pricing]
+currency = "USD"

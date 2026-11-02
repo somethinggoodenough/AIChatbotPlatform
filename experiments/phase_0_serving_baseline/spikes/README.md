@@ -20,7 +20,7 @@ python3 experiments/phase_0_serving_baseline/spikes/04_disconnect.py
 
 ## 流式 usage：本地与 API 都测
 
-两个 provider profile 已设置 `request.stream_usage = true`，实际请求会带 `stream_options={"include_usage": true}`。脚本会读取空 `choices` 的 usage 帧，直到 `[DONE]`，不会在 finish_reason 到来时提前结束。
+spike 默认测试的 SGLang 与 DeepSeek profile 都设置了 `request.stream_usage = true`，实际请求会带 `stream_options={"include_usage": true}`。脚本会读取空 `choices` 的 usage 帧，直到 `[DONE]`，不会在 finish_reason 到来时提前结束。
 
 `--target both` 默认测试两边，分别报告结果；API 未配置时明确记录 blocked，不把本地通过算成两边通过。只测已就绪的本地服务可用 `--target local`；只测 API 用 `--target api`。API 流式请求默认上限 256 output tokens，可通过 `--max-output-tokens` 调整。
 
@@ -57,7 +57,7 @@ python3 experiments/phase_0_serving_baseline/spikes/04_disconnect.py
 离线测试使用本机假的 HTTP/SSE 服务验证脚本本身，**不算真实 SGLang / API 验收**：
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests/unit -p 'test_*.py' -v
+uv run python -m unittest discover -s tests/unit -p 'test_*.py' -v
 ```
 
 当前实际 GPU 和外部 API 结果见 [执行状态](../../../docs/reports/phase-0-spikes.md)。

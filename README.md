@@ -2,7 +2,7 @@
 
 LLM serving 与 Agent runtime 平台。当前规划使用 SGLang 承载本地模型，外部 API 作为同级后端；Discord 是第一个工作负载。完整计划见 [Roadmap](Roadmap.md)。
 
-**当前状态：ProviderProfile + Phase 0 功能探针。** 已有配置、请求编码、usage/错误归一化、价格估算、四个 HTTP spike 和 SGLang Docker Compose 配置；生产后端、平台服务和完整基准框架尚未实现。真实 GPU / API 验证等待远程服务与配置，见 [执行状态](docs/reports/phase-0-spikes.md)。Python 3.11+ / asyncio 是当前默认。
+**当前状态：ModelBackend + ProviderProfile + Phase 0 功能探针。** 已实现统一流式契约、SGLang / DeepSeek / OpenAI / Gemini 后端、取消传播、usage/错误归一化、四个 HTTP spike 和 SGLang Docker Compose 配置；平台 API、gateway 路由和完整基准框架尚未实现。真实 GPU 验证仍等待远程服务，见 [执行状态](docs/reports/phase-0-spikes.md)。
 
 ```text
 src/ai_serving/     平台代码：接口、后端、网关、Agent runtime、渠道、状态与观测
@@ -18,6 +18,7 @@ artifacts/         本地生成结果，不提交原始输出
 
 - [架构与模块边界](docs/architecture.md)
 - [ProviderProfile 与配置切换](docs/provider-profiles.md)
+- [ModelBackend 与取消契约](docs/model-backends.md)
 - [启动 SGLang](deploy/sglang/README.md) · [运行四个 spike](experiments/phase_0_serving_baseline/spikes/README.md)
 - [开发起步](docs/development.md)
 - [测试与验收](docs/testing.md)
@@ -26,8 +27,10 @@ artifacts/         本地生成结果，不提交原始输出
 
 从 Phase 0 开始实现。完成一个阶段时，同步更新 README、验收证据和可复现命令。Phase 4 防护验收完成前，Discord bot 仅用于私有测试服务器。
 
-当前离线测试（无额外依赖、无外部网络调用；部分测试启动本机 HTTP 假服务）：
+安装锁定依赖并运行离线测试（不调用外部 API；部分测试启动本机 HTTP 假服务）：
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests/unit -p 'test_*.py' -v
+uv sync
+uv run python -m unittest discover -s tests/unit -p 'test_*.py' -v
+uv run python -m unittest discover -s tests/contract -p 'test_*.py' -v
 ```

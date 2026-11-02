@@ -1,9 +1,10 @@
 # 测试
 
-目录按验证范围组织。`unit/test_provider_profiles.py` 覆盖配置、能力检查、请求映射、usage、价格和错误分类；`unit/test_serving_spikes.py` 用本机 HTTP 假服务覆盖四个探针及失败分支，不访问外部 API。阶段验收尚未完成。
+目录按验证范围组织。unit 覆盖配置、usage、错误和 spike；contract 使用本机 TCP/SSE 服务覆盖 ModelBackend 的 streaming、终态 usage、health、structured output 以及 task cancel / generator `aclose()`。阶段验收尚未完成。
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests/unit -p 'test_*.py' -v
+uv run python -m unittest discover -s tests/unit -p 'test_*.py' -v
+uv run python -m unittest discover -s tests/contract -p 'test_*.py' -v
 ```
 
 | 目录 | 验证范围 |

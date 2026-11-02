@@ -1,11 +1,13 @@
 # 开发起步
 
-当前已有 ProviderProfile 基础实现和四个 serving spike（Python 3.11 标准库，无额外依赖），以及 SGLang 容器启动配置；尚无平台服务或数据库 schema。用法见 [ProviderProfile](provider-profiles.md) 与 [SGLang 部署](../deploy/sglang/README.md)。
+当前已有 ProviderProfile、异步 ModelBackend、四个 serving spike 和 SGLang 容器启动配置；尚无平台 API、gateway 路由或数据库 schema。用法见 [ModelBackend](model-backends.md)、[ProviderProfile](provider-profiles.md) 与 [SGLang 部署](../deploy/sglang/README.md)。
 
 从仓库根目录执行离线测试：
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests/unit -p 'test_*.py' -v
+uv sync
+uv run python -m unittest discover -s tests/unit -p 'test_*.py' -v
+uv run python -m unittest discover -s tests/contract -p 'test_*.py' -v
 ```
 
 1. 阅读 Roadmap 的 Phase 0 和对应验收清单，先明确 backend 的请求、流、取消与 usage 契约。

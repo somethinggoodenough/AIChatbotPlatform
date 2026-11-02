@@ -62,10 +62,10 @@ class ProviderProfileTests(unittest.TestCase):
         with self.assertRaises(UnsupportedCapability):
             profile.build_request([], reasoning="unmapped")
 
-    def test_capabilities_reject_tools_sampling_and_nonstreaming_only(self):
-        for kwargs in ({"tools": []}, {"temperature": 0}):
-            with self.assertRaises(UnsupportedCapability):
-                self.deepseek.build_request([], **kwargs)
+    def test_capabilities_reject_unsupported_tools_and_streaming(self):
+        with self.assertRaises(UnsupportedCapability):
+            self.deepseek.build_request([], tools=[])
+        self.assertEqual(self.deepseek.build_request([], temperature=0)["temperature"], 0)
         profile = replace(self.deepseek, capabilities=Capabilities())
         with self.assertRaises(UnsupportedCapability):
             profile.build_request([], stream=True)

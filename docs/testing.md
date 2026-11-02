@@ -23,4 +23,4 @@ Router 没有执行工具的代码路径；Worker 不直接向 Discord 发消息
 
 每个阶段记录代码版本、机器 / 模型 / provider、配置、seed、实际运行命令及原始结果索引。性能阈值若 Roadmap 未给出，应在执行前说明测量口径和接受标准，不伪造既定目标。
 
-完成后更新阶段清单与 docs/reports；原始输出放 artifacts，长期证据附可访问的归档位置。目前使用标准库 unittest 运行 ProviderProfile 离线测试，命令见根 README；阶段验收入口仍待实现。
+完成后更新阶段清单与 docs/reports；原始输出放 artifacts，长期证据附可访问的归档位置。目前使用 unittest 运行 unit 与 ModelBackend contract tests，命令见根 README；阶段验收入口仍待实现。

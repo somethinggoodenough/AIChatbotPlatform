@@ -3,7 +3,7 @@
 平台包含通用模型服务与 Agent runtime 两条入口；Discord 是第一个渠道。
 
 ```text
-OpenAI-compatible client → api → gateway → ModelBackend → SGLang / external API
+OpenAI-compatible client → api → gateway → ModelBackend → SGLang / DeepSeek / OpenAI / Gemini
 Discord → ChannelAdapter → events → Router → gateway
                               └→ subscribed Worker → gateway / tools → report → Router
 Router / Worker → state → SQLite WAL

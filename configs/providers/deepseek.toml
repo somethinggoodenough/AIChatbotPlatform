@@ -21,7 +21,7 @@ strict_json_schema = false
 # DeepSeek-specific adapter before exposing low/max effort levels.
 reasoning = true
 tools = false
-temperature = false
+temperature = true
 
 [request]
 max_tokens_field = "max_tokens"

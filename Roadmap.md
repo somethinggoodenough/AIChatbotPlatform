@@ -103,16 +103,16 @@ This is the implementation plan for the AI Chatbot Serving Platform (working tit
 
 **Build**
 
-- [ ] Step journal: every model call and tool call is recorded as a step `{task_id, step_index, kind, backend, input, output, status, idempotency_key}`, written before its result is used
-- [ ] Replay: on restart, completed steps return their journaled outputs and execution resumes at the first incomplete step. Journaled API outputs are reused, never requested again
-- [ ] Tool side-effect classes `read_only`, `idempotent`, and `side_effecting`. Side-effecting tools must accept an idempotency key (`task_id:step_index`)
-- [ ] Compensation: each side-effecting step records its compensating action in the journal. Rollback runs them in reverse order. The agent's path is not known in advance, so compensations are tracked per executed step rather than predefined
-- [ ] Two recovery modes:
+- [x] Step journal: every Worker model call and tool call is recorded as a step `{task_id, step_index, kind, backend, input, output, status, idempotency_key}`, written before its result is used; Router decisions use a durable inbox
+- [x] Replay: on restart, completed steps return their journaled outputs and execution resumes at the first incomplete step. Unknown model outcomes require verified idempotency or reconciliation
+- [x] Tool side-effect classes `read_only`, `idempotent`, and `side_effecting`. Side-effecting tools must accept an idempotency key (`task_id:step_index`)
+- [x] Compensation: each side-effecting step records its compensating action in the journal. Rollback runs current-round actions in reverse order, preserving earlier completed rounds
+- [x] Two recovery modes:
   - **Infra failure** (crash, timeout, provider error): replay, then resume
   - **Logic failure** (invalid tool call, failed acceptance check): re-plan from the last checkpoint with the error in context. A plain replay would only repeat the mistake
-- [ ] Stateless Router: the process holds nothing that isn't in the store. A restart resumes in-flight tasks and subscriptions
-- [ ] Watchdog: heartbeats detect crashed Workers; progress checks detect stuck or looping ones (no new steps, or the same step repeated)
-- [ ] Crash-injection harness: `kill -9` at each step boundary (before the call; after the call but before the journal write; after the journal write)
+- [x] Stateless Router: durable inbox, decisions, batch membership, tasks and subscriptions survive restart; ambiguous channel delivery is explicit
+- [x] Watchdog: heartbeats detect crashed Workers; progress checks detect stuck or looping ones (no new steps, or the same step repeated)
+- [x] Crash-injection harness: `kill -9` at each step boundary (before the call; after the call but before the journal write; after the journal write), with lease + fencing checked at the state/effect sink
 
 **Acceptance criteria**
 

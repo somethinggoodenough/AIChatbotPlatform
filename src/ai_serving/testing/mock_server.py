@@ -285,7 +285,10 @@ class MockServer:
                 await generation
             else:
                 self.stats.cancelled += 1
-        except (asyncio.IncompleteReadError, ConnectionError, json.JSONDecodeError):
+        except ConnectionError:
+            if active:
+                self.stats.cancelled += 1
+        except (asyncio.IncompleteReadError, json.JSONDecodeError):
             pass
         finally:
             for task in (generation, disconnected):

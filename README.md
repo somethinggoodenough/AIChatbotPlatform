@@ -2,7 +2,7 @@
 
 LLM serving 与 Agent runtime 平台。当前规划使用 SGLang 承载本地模型，外部 API 作为同级后端；Discord 是第一个工作负载。完整计划见 [Roadmap](Roadmap.md)。
 
-**当前状态：Phase 0–1 离线实现。** 统一 backend、gateway、HTTP API、metrics、mock 基准和 fake channel → Router → Worker 路径已实现，包含 SQLite 状态与 OpenTelemetry trace。真实 GPU、付费 provider 和 Discord 验收不以 mock 替代，见 [离线验收记录](docs/reports/offline-acceptance.md)。
+**当前状态：Phase 0–2 离线实现。** serving、fake channel → Router → Worker、SQLite 状态与 trace 已贯通；加入 lease/fencing、journal/replay、补偿、watchdog 和实际 SIGKILL 验证。真实 GPU、付费 provider 和 Discord 验收不以 mock 替代，见 [离线验收记录](docs/reports/offline-acceptance.md)。
 
 ```text
 src/ai_serving/     平台代码：接口、后端、网关、Agent runtime、渠道、状态与观测

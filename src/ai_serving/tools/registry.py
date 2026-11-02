@@ -4,14 +4,29 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 from ai_serving.observability.tracing import traced
+from ai_serving.state.sqlite.store import Lease, StateStore
+
+
+@dataclass(frozen=True)
+class ToolContext:
+    store: StateStore
+    lease: Lease
+    idempotency_key: str
 
 
 @dataclass(frozen=True)
 class Tool:
     name: str
     description: str
-    function: Callable[[dict[str, Any]], Awaitable[Any]]
+    function: Callable[..., Awaitable[Any]]
     effect: str = "read_only"
+    compensation: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+
+    def __post_init__(self):
+        if self.effect not in {"read_only", "idempotent", "side_effecting"}:
+            raise ValueError("invalid tool effect class")
+        if self.effect == "side_effecting" and self.compensation is None:
+            raise ValueError("side-effecting tools must describe their compensation")
 
 
 class ToolRegistry:
@@ -22,10 +37,28 @@ class ToolRegistry:
         return [{"name": tool.name, "description": tool.description} for tool in self.tools.values()]
 
     @traced("worker.tool")
-    async def execute(self, name: str, arguments: dict[str, Any]) -> Any:
+    async def execute(self, name: str, arguments: dict[str, Any], *, context: ToolContext | None = None) -> Any:
         if name not in self.tools:
             raise ValueError(f"unknown tool: {name}")
-        return await self.tools[name].function(arguments)
+        tool = self.tools[name]
+        if tool.effect == "read_only":
+            return await tool.function(arguments)
+        if context is None:
+            raise ValueError("effectful tools require an idempotency key and fencing context")
+        context.store.assert_lease(context.lease)
+        return await tool.function(arguments, context)
+
+
+def effect_tool() -> Tool:
+    async def apply(arguments: dict, context: ToolContext) -> dict:
+        return context.store.effect(context.lease, context.idempotency_key,
+                                    str(arguments["name"]), float(arguments["delta"]))
+
+    def compensation(arguments: dict) -> dict:
+        return {"tool": "record_effect", "arguments": {"name": arguments["name"], "delta": -float(arguments["delta"])}}
+
+    return Tool("record_effect", "Record a durable toy counter change: {name: string, delta: number}.",
+                apply, "side_effecting", compensation)
 
 
 def default_tools(documents: dict[str, str] | None = None) -> ToolRegistry:

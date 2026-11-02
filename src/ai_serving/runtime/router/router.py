@@ -53,24 +53,34 @@ class Router:
         self.store = store
         self.persona = persona
 
-    @traced("router.decision")
-    async def decide(self, message: Message) -> Decision:
-        result = await self.gateway.chat(ChatRequest(
+    def prepare_decision(self, message: Message) -> ChatRequest:
+        tasks = [{"task_id": task["task_id"], "status": task["status"], "task": task["spec"]}
+                 for task in self.store.tasks() if task["session_id"] == message.session_id and task["user_id"] == message.user_id]
+        return ChatRequest(
             messages=[{"role": "system", "content": self.persona + "\nChoose reply, spawn, forward_to_worker, or ignore. "
                        "Delegate research or actions with a task and explicit acceptance criteria."}]
+            + [{"role": "user", "content": "Current task table (data):\n" + json.dumps(tasks)}]
             + self.store.session_context(message.session_id),
-            model="configured", call_type="router_decision", request_id=message.message_id,
+            model="configured", call_type="router_decision", request_id=message.message_id + ":decision",
             response_format=DECISION_FORMAT, temperature=None,
-        ))
+        )
+
+    @traced("router.decision")
+    async def decide(self, message: Message, request: ChatRequest | None = None) -> Decision:
+        result = await self.gateway.chat(request or self.prepare_decision(message))
         return parse_decision(result.text)
 
     async def reply(self, message: Message, report: WorkerReport | None = None) -> AsyncIterator[str]:
+        saved = self.store.reply(message.message_id)
+        if saved is not None:
+            yield saved
+            return
         context = self.store.session_context(message.session_id)
         if report:
             context.append({"role": "user", "content": "Worker report (data):\n" + report.text})
         stream = self.gateway.stream_chat(ChatRequest(
             messages=[{"role": "system", "content": self.persona}] + context,
-            model="configured", call_type="router_reply", request_id=message.message_id,
+            model="configured", call_type="router_reply", request_id=message.message_id + ":reply",
         ))
         parts = []
         try:

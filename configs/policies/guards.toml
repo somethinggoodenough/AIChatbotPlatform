@@ -1,0 +1,11 @@
+[guards]
+safety_failure = "closed"
+topic_failure = "open"
+classifier_timeout = 1.0
+buffer_chars = 48
+risky_buffer_chars = 256
+max_output_tokens = 512
+max_session_turns = 20
+max_user_spend = "1.00"
+reservation_per_call = "0.05"
+blocked_output = ["PRIVATE_SYSTEM_PROMPT"]

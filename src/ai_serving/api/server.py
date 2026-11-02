@@ -18,6 +18,7 @@ from ai_serving.backends.providers import BackendError, BackendHTTPError
 from ai_serving.contracts import ChatChunk, ChatRequest
 from ai_serving.gateway import Gateway
 from ai_serving.gateway.routing import RetryContext
+from ai_serving.guards.pipeline import GuardRejected
 
 
 def wire_usage(usage: dict | None) -> dict | None:
@@ -121,6 +122,8 @@ class ApiServer:
         try:
             if not isinstance(body, dict) or "messages" not in body:
                 raise ValueError("messages are required")
+            if body.get("call_type", "default") != "default":
+                raise ValueError("Internal call types are not a public API option")
             supported = {field.name for field in fields(ChatRequest)} | {"stream", "stream_options", "n", "retry_safe"}
             if body.keys() - supported or body.get("n", 1) != 1:
                 raise ValueError("Unsupported Chat Completions option")
@@ -170,6 +173,8 @@ class ApiServer:
                 await writer.drain()
         except (ValueError, TypeError):
             await self._error(writer, streaming_started, 400, "invalid_request")
+        except GuardRejected:
+            await self._error(writer, streaming_started, 403, "guard_rejected")
         except BackendHTTPError as exc:
             status = exc.status_code if exc.status_code >= 400 else 502
             await self._error(writer, streaming_started, status, exc.classified.kind)

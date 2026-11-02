@@ -17,7 +17,7 @@ The runner only permits loopback network connections. Real-system acceptance is 
 | 1 | 87 tests run: 80 passed, 7 explicit skips; 300 mock decisions, fake channel, persisted threads, Router tool boundary and complete OTel trace | Private Discord server skipped |
 | 2 | 17 durability tests passed, including 6 real SIGKILL windows, fenced leases, idempotent toy effects, per-round rollback and persisted batch recovery; earlier suites green | Provider idempotency / result lookup unverified |
 | 3 | 15 routing/fault tests and routed-runtime integration passed; JSON load report covers fallback, locality, re-prefill and batching | Real replicas and SGLang Gateway comparison skipped |
-| 4 | Pending | Real classifier quality / judge calibration skipped |
+| 4 | 17 guard tests + 4 guarded API tests; parallel checks, immediate cancellation, structured rejection blocks tools, output buffering, budgets and 10 scripted red-team fixtures | Real classifier quality / judge calibration skipped; classifier can remain on TTFT critical path |
 | 5 | Pending | Real local/API delegation rates skipped |
 
 Stored tasks and journal inputs/outputs are application state. They may contain message content and must be protected like a database. Logs, traces and benchmark reports do not contain message text, reasoning content, authorization headers or API keys.

@@ -155,12 +155,12 @@ This is the implementation plan for the AI Chatbot Serving Platform (working tit
 
 **Build**
 
-- [ ] Input normalization (unicode homoglyphs, zero-width characters, encoded payloads)
+- [x] Input normalization (NFKC, common homoglyphs, zero-width characters, bounded percent/HTML/base64 decoding; not exhaustive)
 - [ ] Input classifier (topic and injection, local model) running in parallel with the main model call. On reject, generation is cancelled and a fixed reply goes out. For API calls, the upstream request is aborted to stop further spend
-- [ ] Streaming output check with a small buffer, tiered by risk (only flagged requests get the larger buffer), plus a canary token in the system prompt to detect prompt leaks
-- [ ] Untrusted content isolation inside Workers: RAG and tool results are delimited and marked as data
-- [ ] Fail-open/fail-closed policy per component, set in config: safety checks fail closed, the topic classifier fails open
-- [ ] Abuse economics: cap max output tokens, turns per session, and API spend per user
+- [x] Streaming output check with a small buffer, tiered by risk, plus a canary token in the system prompt (deterministic leak checks; real semantic safety pending)
+- [x] Untrusted content isolation inside Workers: RAG and tool results are delimited and marked as data
+- [x] Fail-open/fail-closed policy per component, set in config: safety checks fail closed, the topic classifier fails open
+- [x] Abuse economics: cap max output tokens and turns; reserve spend per user and deny paid/unknown-price routes without a verified cost bound
 - [ ] Optional: a model-based second stage for the event filter, which decides whether an unaddressed group message should reach the Router
 - [ ] Red-team set covering role nesting, instruction override, encoding tricks, multi-turn crescendo, and indirect injection through RAG documents. It is scored by an LLM-as-judge with a written rubric, calibrated on a small hand-labeled sample
 

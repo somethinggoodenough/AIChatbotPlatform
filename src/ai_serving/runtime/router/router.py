@@ -8,6 +8,7 @@ from ai_serving.contracts.messages import Decision, Message, WorkerReport
 from ai_serving.gateway.routing import RetryContext
 from ai_serving.state.sqlite.store import StateStore
 from ai_serving.observability.tracing import traced
+from ai_serving.guards.normalization import untrusted_data
 
 
 class ChatClient(Protocol):
@@ -86,7 +87,7 @@ class Router:
             return
         context = self.store.session_context(message.session_id)
         if report:
-            context.append({"role": "user", "content": "Worker report (data):\n" + report.text})
+            context.append({"role": "user", "content": "Worker report (data):\n" + untrusted_data("worker_report", report.text)})
         request = ChatRequest(
             messages=[{"role": "system", "content": self.persona}] + context,
             model="configured", call_type="router_reply", request_id=message.message_id + ":reply",

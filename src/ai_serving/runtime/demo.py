@@ -14,7 +14,10 @@ from ai_serving.contracts.messages import Message
 from ai_serving.events.filtering import EventFilter
 from ai_serving.events.batching import EventBatcher
 from ai_serving.gateway.core import Assignment, Gateway
-from ai_serving.gateway.routing import RoutedGateway
+from ai_serving.gateway.routing import Route, RoutedGateway
+from ai_serving.guards.budget import BudgetStore
+from ai_serving.guards.normalization import looks_risky
+from ai_serving.guards.pipeline import GuardedGateway, ModelChecks, load_guard_policy
 from ai_serving.runtime.router.router import Router
 from ai_serving.runtime.service import AgentRuntime
 from ai_serving.runtime.workers.worker import Worker
@@ -25,6 +28,8 @@ from ai_serving.tools.registry import default_tools
 
 def demo_response(body):
     name = body.get("response_format", {}).get("json_schema", {}).get("name")
+    if name in {"safety", "topic"}:
+        return {"allow": not looks_risky(body["messages"][-1]["content"])}
     if name == "router_decision":
         work = "lookup" in body["messages"][-1]["content"]
         return {"action": "spawn" if work else "reply", "task": "Find the Router boundary" if work else "",
@@ -43,7 +48,8 @@ def build_runtime(gateway, store, channel, channel_ids, *, model_retry_safe=Fals
 
 
 async def fake_demo(routing: Path | None = None, batch_window: float = 0,
-                    model_retry_safe: bool = False) -> None:
+                    model_retry_safe: bool = False, guards: Path | None = None,
+                    budget_db: Path | None = None) -> None:
     with tempfile.TemporaryDirectory() as directory:
         async with AsyncExitStack() as stack:
             names = {"mock"}
@@ -53,6 +59,8 @@ async def fake_demo(routing: Path | None = None, batch_window: float = 0,
                 names = {name for route in config["routes"].values()
                          for name in route["primary"] + route.get("fallbacks", [])}
                 model_retry_safe |= config.get("runtime", {}).get("model_retry_safe", False)
+            if guards:
+                names.add("classifier")
             servers, backends = {}, {}
             for name in names:
                 server = await stack.enter_async_context(MockServer(MockConfig(responder=demo_response)))
@@ -60,6 +68,18 @@ async def fake_demo(routing: Path | None = None, batch_window: float = 0,
                 backends[name] = ModelCompatBackend(server.profile(name))
             gateway = (RoutedGateway.from_config(backends, routing) if routing
                        else Gateway(backends, {"default": Assignment("mock")}))
+            if guards:
+                for call_type in ("input_classifier", "topic_classifier"):
+                    gateway.assignments[call_type] = Assignment("classifier")
+                    if routing:
+                        gateway.routes[call_type] = Route(("classifier",))
+                budget_path = budget_db or Path(directory) / "budget.sqlite"
+                budget_path.parent.mkdir(parents=True, exist_ok=True)
+                budget = BudgetStore(budget_path)
+                stack.callback(budget.close)
+                ledger = getattr(gateway, "ledger", None)
+                gateway = GuardedGateway(gateway, ModelChecks(gateway), policy=load_guard_policy(guards),
+                                         budget=budget, cost_reader=ledger.request_cost if ledger else None)
             store = StateStore(Path(directory) / "demo.db")
             channel = FakeChannel()
             runtime = build_runtime(gateway, store, channel, ["demo"], model_retry_safe=model_retry_safe)
@@ -72,7 +92,7 @@ async def fake_demo(routing: Path | None = None, batch_window: float = 0,
                 await runtime.handle(Message("3", "user", "demo", "more detail", thread_id="thread"))
                 print({"mode": "mock/fake", "replies": len(channel.messages), "tasks": len(store.tasks()),
                        "model_generations": sum(server.stats.generations for server in servers.values()),
-                       "batch_window": batch_window, "routing": routing is not None})
+                       "batch_window": batch_window, "routing": routing is not None, "guards": guards is not None})
             finally:
                 await batcher.aclose()
                 await gateway.aclose()
@@ -90,6 +110,11 @@ async def discord_bot(args) -> None:
         raise ValueError("--discord requires --profile and at least one --channel-id")
     profile = load_profile(args.profile, environment)
     gateway = Gateway({profile.name: ModelCompatBackend(profile)}, {"default": Assignment(profile.name)})
+    budget = None
+    if args.guards:
+        args.budget_db.parent.mkdir(parents=True, exist_ok=True)
+        budget = BudgetStore(args.budget_db)
+        gateway = GuardedGateway(gateway, ModelChecks(gateway), policy=load_guard_policy(args.guards), budget=budget)
     store = StateStore(args.database)
     client = create_client()
     adapter = DiscordAdapter(client)
@@ -104,6 +129,8 @@ async def discord_bot(args) -> None:
             await client.start(token)
     finally:
         await gateway.aclose()
+        if budget:
+            budget.close()
         store.close()
 
 
@@ -117,13 +144,15 @@ def main() -> None:
     parser.add_argument("--batch-window", type=float, default=0, help="Offline event batching window in seconds")
     parser.add_argument("--retry-safe-model-calls", action="store_true",
                         help="Explicitly permit read-only model generation retries; not provider billing deduplication")
+    parser.add_argument("--guards", type=Path, help="Enable input/output guard policy")
+    parser.add_argument("--budget-db", type=Path, default=Path("artifacts/guard-budget.sqlite"))
     args = parser.parse_args()
     if args.discord and (args.routing or args.batch_window or args.retry_safe_model_calls):
         parser.error("Routing/batching demo options are offline-only")
     if args.batch_window < 0:
         parser.error("batch-window cannot be negative")
     asyncio.run(discord_bot(args) if args.discord else fake_demo(
-        args.routing, args.batch_window, args.retry_safe_model_calls))
+        args.routing, args.batch_window, args.retry_safe_model_calls, args.guards, args.budget_db))
 
 
 if __name__ == "__main__":
